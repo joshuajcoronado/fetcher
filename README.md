@@ -61,34 +61,61 @@ type Fetcher interface {
 
 ## Configuration
 
-Configuration is managed via Viper, supporting both environment variables and config files.
+Configuration is managed via Viper, supporting both `config.yaml` files and environment variables.
+
+### Configuration File
+
+Create a `config.yaml` file (see `config.yaml.example`):
+
+```yaml
+# API Keys and Credentials
+etherscan_api_key: "your-etherscan-api-key"
+alphavantage_api_key: "your-alphavantage-api-key"
+rentcast_api_key: "your-rentcast-api-key"
+guideline_email: "your-email@example.com"
+guideline_password: "your-password"
+
+# Base URLs (optional - defaults to production endpoints)
+# etherscan_base_url: "https://api.etherscan.io/v2/api"
+# alphavantage_base_url: "https://www.alphavantage.co/query"
+# rentcast_base_url: "https://api.rentcast.io/v1"
+# guideline_base_url: "https://my.guideline.com"
+
+# Ethereum wallet addresses to fetch balances for
+ethereum_wallets:
+  - "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+
+# Stock symbols to fetch prices for
+stock_symbols:
+  - "AAPL"
+  - "GOOGL"
+  - "MSFT"
+
+# Properties to fetch valuations for
+properties:
+  - address: "5500 Grand Lake Dr, San Antonio, TX 78244"
+    property_type: "Single Family"
+    bedrooms: 3
+    bathrooms: 2
+    square_footage: 1878
+```
 
 ### Environment Variables
 
-Create a `.env` file (see `.env.example`):
-
-```bash
-# Required
-ETHERSCAN_API_KEY=your_key
-ALPHAVANTAGE_API_KEY=your_key
-RENTCAST_API_KEY=your_key
-GUIDELINE_EMAIL=your_email
-GUIDELINE_PASSWORD=your_password
-
-# Optional (for testing/mocking)
-ETHERSCAN_BASE_URL=https://api.etherscan.io/v2/api
-ALPHAVANTAGE_BASE_URL=https://www.alphavantage.co/query
-RENTCAST_BASE_URL=https://api.rentcast.io/v1
-GUIDELINE_BASE_URL=https://my.guideline.com
-```
+All configuration values can also be set via environment variables:
+- `ETHERSCAN_API_KEY`
+- `ALPHAVANTAGE_API_KEY`
+- `RENTCAST_API_KEY`
+- `GUIDELINE_EMAIL`
+- `GUIDELINE_PASSWORD`
+- `ETHERSCAN_BASE_URL` (optional)
+- `ALPHAVANTAGE_BASE_URL` (optional)
+- `RENTCAST_BASE_URL` (optional)
+- `GUIDELINE_BASE_URL` (optional)
 
 ## Usage
 
 ```bash
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
 # Build
 go build
 
