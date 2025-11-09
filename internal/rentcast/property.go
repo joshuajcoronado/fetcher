@@ -3,7 +3,11 @@ package rentcast
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"financefetcher/internal/fetcher"
+	"financefetcher/internal/ratelimit"
 
 	"resty.dev/v3"
 )
@@ -92,10 +96,8 @@ type PropertyFetcher struct {
 
 // NewPropertyFetcher creates a new property valuation fetcher
 func NewPropertyFetcher(apiKey string, params PropertyParams, baseURL string) *PropertyFetcher {
-	client := resty.New().
-		SetBaseURL(baseURL).
-		SetHeader("Accept", "application/json").
-		SetHeader("X-Api-Key", apiKey)
+	client := fetcher.NewHTTPClient(baseURL)
+	client.SetHeader("X-Api-Key", apiKey)
 
 	return &PropertyFetcher{
 		apiKey: apiKey,
@@ -106,6 +108,14 @@ func NewPropertyFetcher(apiKey string, params PropertyParams, baseURL string) *P
 
 // Fetch retrieves the property valuation
 func (f *PropertyFetcher) Fetch(ctx context.Context) (float64, error) {
+	// Apply rate limiting
+	limiter := ratelimit.GetLimiter()
+	if err := limiter.Wait(ctx, ratelimit.APIRentcast); err != nil {
+		return 0, fetcher.NewTimeoutError(err)
+	}
+
+	slog.Debug("fetching property valuation from Rentcast", "address", f.params.Address)
+
 	var result PropertyValueResponse
 
 	resp, err := f.client.R().
@@ -121,15 +131,16 @@ func (f *PropertyFetcher) Fetch(ctx context.Context) (float64, error) {
 		Get("/avm/value")
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch property valuation for %s: %w", f.params.Address, err)
+		return 0, fetcher.NewNetworkError(err)
 	}
 
 	if !resp.IsSuccess() {
-		return 0, fmt.Errorf("rentcast API returned status %d", resp.StatusCode())
+		fetchErr := fetcher.ClassifyHTTPError(resp.StatusCode())
+		return 0, fmt.Errorf("failed to fetch property valuation for %s: %w", f.params.Address, fetchErr)
 	}
 
 	if result.Price == 0 {
-		return 0, fmt.Errorf("price not found in response for %s", f.params.Address)
+		return 0, fetcher.NewValidationError(fmt.Sprintf("price not found in response for %s", f.params.Address))
 	}
 
 	// Store the full response for later access

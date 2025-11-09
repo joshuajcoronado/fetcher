@@ -3,8 +3,12 @@ package etherscan
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strconv"
+
+	"financefetcher/internal/fetcher"
+	"financefetcher/internal/ratelimit"
 
 	"resty.dev/v3"
 )
@@ -41,9 +45,7 @@ type WalletFetcher struct {
 
 // NewWalletFetcher creates a new wallet balance fetcher
 func NewWalletFetcher(apiKey, address, baseURL string) *WalletFetcher {
-	client := resty.New().
-		SetBaseURL(baseURL).
-		SetHeader("Accept", "application/json")
+	client := fetcher.NewHTTPClient(baseURL)
 
 	return &WalletFetcher{
 		apiKey:  apiKey,
@@ -54,6 +56,14 @@ func NewWalletFetcher(apiKey, address, baseURL string) *WalletFetcher {
 
 // fetchEthPrice gets the current ETH/USD price
 func (f *WalletFetcher) fetchEthPrice(ctx context.Context) (float64, error) {
+	// Apply rate limiting
+	limiter := ratelimit.GetLimiter()
+	if err := limiter.Wait(ctx, ratelimit.APIEtherscan); err != nil {
+		return 0, fetcher.NewTimeoutError(err)
+	}
+
+	slog.Debug("fetching ETH price from Etherscan")
+
 	var result EthPriceResponse
 
 	resp, err := f.client.R().
@@ -68,20 +78,21 @@ func (f *WalletFetcher) fetchEthPrice(ctx context.Context) (float64, error) {
 		Get("")
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch ETH price: %w", err)
+		return 0, fetcher.NewNetworkError(err)
 	}
 
 	if !resp.IsSuccess() {
-		return 0, fmt.Errorf("etherscan API returned status %d", resp.StatusCode())
+		fetchErr := fetcher.ClassifyHTTPError(resp.StatusCode())
+		return 0, fmt.Errorf("failed to fetch ETH price: %w", fetchErr)
 	}
 
 	if result.Result.EthUSD == "" {
-		return 0, fmt.Errorf("ETH price not found in response")
+		return 0, fetcher.NewValidationError("ETH price not found in response")
 	}
 
 	price, err := strconv.ParseFloat(result.Result.EthUSD, 64)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse ETH price: %w", err)
+		return 0, fetcher.NewValidationError(fmt.Sprintf("failed to parse ETH price: %v", err))
 	}
 
 	return price, nil
@@ -94,6 +105,14 @@ func (f *WalletFetcher) Fetch(ctx context.Context) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Apply rate limiting for the balance request
+	limiter := ratelimit.GetLimiter()
+	if err := limiter.Wait(ctx, ratelimit.APIEtherscan); err != nil {
+		return 0, fetcher.NewTimeoutError(err)
+	}
+
+	slog.Debug("fetching wallet balance from Etherscan", "address", f.address)
 
 	// Then get the wallet balance in wei
 	var balanceResult BalanceResponse
@@ -112,22 +131,23 @@ func (f *WalletFetcher) Fetch(ctx context.Context) (float64, error) {
 		Get("")
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch wallet balance: %w", err)
+		return 0, fetcher.NewNetworkError(err)
 	}
 
 	if !resp.IsSuccess() {
-		return 0, fmt.Errorf("etherscan API returned status %d", resp.StatusCode())
+		fetchErr := fetcher.ClassifyHTTPError(resp.StatusCode())
+		return 0, fmt.Errorf("failed to fetch wallet balance: %w", fetchErr)
 	}
 
 	if balanceResult.Result == "" {
-		return 0, fmt.Errorf("balance not found in response")
+		return 0, fetcher.NewValidationError("balance not found in response")
 	}
 
 	// Convert wei (string) to big.Int, then to ETH (float64)
 	weiBalance := new(big.Int)
 	weiBalance, ok := weiBalance.SetString(balanceResult.Result, 10)
 	if !ok {
-		return 0, fmt.Errorf("failed to parse balance: %s", balanceResult.Result)
+		return 0, fetcher.NewValidationError(fmt.Sprintf("failed to parse balance: %s", balanceResult.Result))
 	}
 
 	// Convert wei to ETH: divide by 10^18
