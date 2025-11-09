@@ -175,7 +175,7 @@ func TestStockFetcher_Fetch_MissingPrice(t *testing.T) {
 		t.Error("Fetch() expected error for missing price, got nil")
 	}
 
-	expectedErrMsg := "price not found in response for AAPL"
+	expectedErrMsg := "validation error: price not found in response for AAPL"
 	if err.Error() != expectedErrMsg {
 		t.Errorf("Fetch() error = %q, want %q", err.Error(), expectedErrMsg)
 	}
