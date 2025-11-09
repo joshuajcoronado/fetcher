@@ -3,7 +3,11 @@ package alphavantage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
+
+	"financefetcher/internal/fetcher"
+	"financefetcher/internal/ratelimit"
 
 	"resty.dev/v3"
 )
@@ -33,9 +37,7 @@ type StockFetcher struct {
 
 // NewStockFetcher creates a new stock price fetcher
 func NewStockFetcher(apiKey, ticker, baseURL string) *StockFetcher {
-	client := resty.New().
-		SetBaseURL(baseURL).
-		SetHeader("Accept", "application/json")
+	client := fetcher.NewHTTPClient(baseURL)
 
 	return &StockFetcher{
 		apiKey: apiKey,
@@ -46,6 +48,14 @@ func NewStockFetcher(apiKey, ticker, baseURL string) *StockFetcher {
 
 // Fetch retrieves the current stock price
 func (f *StockFetcher) Fetch(ctx context.Context) (float64, error) {
+	// Apply rate limiting
+	limiter := ratelimit.GetLimiter()
+	if err := limiter.Wait(ctx, ratelimit.APIAlphaVantage); err != nil {
+		return 0, fetcher.NewTimeoutError(err)
+	}
+
+	slog.Debug("fetching stock price from AlphaVantage", "ticker", f.ticker)
+
 	var result GlobalQuoteResponse
 
 	resp, err := f.client.R().
@@ -59,20 +69,21 @@ func (f *StockFetcher) Fetch(ctx context.Context) (float64, error) {
 		Get("")
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch stock price for %s: %w", f.ticker, err)
+		return 0, fetcher.NewNetworkError(err)
 	}
 
 	if !resp.IsSuccess() {
-		return 0, fmt.Errorf("alphavantage API returned status %d", resp.StatusCode())
+		fetchErr := fetcher.ClassifyHTTPError(resp.StatusCode())
+		return 0, fmt.Errorf("failed to fetch stock price for %s: %w", f.ticker, fetchErr)
 	}
 
 	if result.GlobalQuote.Price == "" {
-		return 0, fmt.Errorf("price not found in response for %s", f.ticker)
+		return 0, fetcher.NewValidationError(fmt.Sprintf("price not found in response for %s", f.ticker))
 	}
 
 	price, err := strconv.ParseFloat(result.GlobalQuote.Price, 64)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse stock price: %w", err)
+		return 0, fetcher.NewValidationError(fmt.Sprintf("failed to parse stock price: %v", err))
 	}
 
 	return price, nil
