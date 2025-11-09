@@ -1,0 +1,46 @@
+# Finance Fetcher Configuration
+# Copy this file and update with your actual values
+
+# API Keys and Credentials
+# These can also be set via environment variables (ETHERSCAN_API_KEY, etc.)
+etherscan_api_key: "your-etherscan-api-key"
+alphavantage_api_key: "your-alphavantage-api-key"
+rentcast_api_key: "your-rentcast-api-key"
+guideline_email: "your-email@example.com"
+guideline_password: "your-password"
+
+# Base URLs (optional - defaults to production endpoints)
+# etherscan_base_url: "https://api.etherscan.io/v2/api"
+# alphavantage_base_url: "https://www.alphavantage.co/query"
+# rentcast_base_url: "https://api.rentcast.io/v1"
+# guideline_base_url: "https://my.guideline.com"
+
+# Items to Fetch
+# Configure which assets/items you want to track
+
+# Ethereum wallet addresses to fetch balances for
+ethereum_wallets:
+  - "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  # Add more wallet addresses as needed
+  # - "0xYourOtherWalletAddress"
+
+# Stock symbols to fetch prices for
+stock_symbols:
+  - "CRWV"
+  # Add more stock symbols as needed
+  # - "AAPL"
+  # - "GOOGL"
+
+# Properties to fetch valuations for
+properties:
+  - address: "5500 Grand Lake Dr, San Antonio, TX 78244"
+    property_type: "Single Family"
+    bedrooms: 3
+    bathrooms: 2
+    square_footage: 1878
+  # Add more properties as needed
+  # - address: "123 Main St, Austin, TX 78701"
+  #   property_type: "Condo"
+  #   bedrooms: 2
+  #   bathrooms: 2
+  #   square_footage: 1200

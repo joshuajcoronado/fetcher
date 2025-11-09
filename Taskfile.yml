@@ -1,0 +1,44 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  default:
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test -v ./...
+
+  test:coverage:
+    desc: Run all tests with coverage
+    cmds:
+      - go test -v -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test:unit:
+    desc: Run unit tests only (exclude integration tests)
+    cmds:
+      - go test -v -short ./internal/...
+
+  test:integration:
+    desc: Run integration tests only
+    cmds:
+      - go test -v -run TestIntegration ./...
+
+  build:
+    desc: Build the application
+    cmds:
+      - go build -o financefetcher .
+
+  run:
+    desc: Run the application
+    cmds:
+      - go run .
